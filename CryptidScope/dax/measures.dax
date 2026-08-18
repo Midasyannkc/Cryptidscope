@@ -1,0 +1,85 @@
+// DAX Measures — CryptidScope
+// Organized into a dedicated "_Measures" table (Modeling > New Table > blank,
+// named "_Measures") so measures aren't scattered across the fact tables in
+// the Fields pane.
+
+// ── Core Counts ──────────────────────────────────────────────────────────
+
+Total Bigfoot Sightings =
+COUNTROWS('Bigfoot Sightings')
+
+Total UFO Sightings =
+COUNTROWS('UFO Sightings')
+
+Total All Sightings =
+[Total Bigfoot Sightings] + [Total UFO Sightings]
+
+// ── Reliability / Classification ────────────────────────────────────────
+
+// "Reliable" is defined once, here, as Class A or B. If that definition
+// ever changes, it changes in one measure, not in every visual that
+// happens to filter on classification.
+Reliable Bigfoot Sightings =
+CALCULATE(
+    [Total Bigfoot Sightings],
+    'Bigfoot Sightings'[classification] IN {"A", "B"}
+)
+
+Reliable Sighting Rate =
+DIVIDE([Reliable Bigfoot Sightings], [Total Bigfoot Sightings], 0)
+
+// ── Year-over-Year Trend ────────────────────────────────────────────────
+
+Bigfoot Sightings PY =
+CALCULATE(
+    [Total Bigfoot Sightings],
+    SAMEPERIODLASTYEAR('Date'[Date])
+)
+
+Bigfoot YoY Change =
+[Total Bigfoot Sightings] - [Bigfoot Sightings PY]
+
+Bigfoot YoY % Change =
+DIVIDE([Bigfoot YoY Change], [Bigfoot Sightings PY], BLANK())
+
+UFO Sightings PY =
+CALCULATE(
+    [Total UFO Sightings],
+    SAMEPERIODLASTYEAR('Date'[Date])
+)
+
+UFO YoY % Change =
+DIVIDE([Total UFO Sightings] - [UFO Sightings PY], [UFO Sightings PY], BLANK())
+
+// ── Geographic Concentration ────────────────────────────────────────────
+
+// Ranks states by sighting count within the current filter context, so this
+// works correctly whether the report is sliced to one year, one decade, or
+// unfiltered -- rather than a static ranking computed at load time.
+State Rank by Bigfoot Sightings =
+RANKX(
+    ALL('Bigfoot Sightings'[state]),
+    CALCULATE([Total Bigfoot Sightings]),
+    ,
+    DESC
+)
+
+Top State Bigfoot Sightings =
+CALCULATE(
+    [Total Bigfoot Sightings],
+    TOPN(1, ALL('Bigfoot Sightings'[state]), CALCULATE([Total Bigfoot Sightings]), DESC)
+)
+
+// ── Cross-Table Pattern Measure ─────────────────────────────────────────
+
+// The "find a pattern" ask from the project brief: do states with high
+// Bigfoot activity also see high UFO activity, or are the two independent?
+// Built as a measure (not a manual join) so it recalculates correctly under
+// any state/date filter applied in the report.
+Sightings Correlation Index =
+VAR BigfootShare =
+    DIVIDE([Total Bigfoot Sightings], CALCULATE([Total Bigfoot Sightings], ALL('Bigfoot Sightings'[state])))
+VAR UfoShare =
+    DIVIDE([Total UFO Sightings], CALCULATE([Total UFO Sightings], ALL('UFO Sightings'[state])))
+RETURN
+    DIVIDE(BigfootShare, UfoShare, BLANK())
